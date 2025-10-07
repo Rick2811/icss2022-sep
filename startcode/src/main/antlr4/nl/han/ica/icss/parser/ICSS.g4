@@ -43,21 +43,30 @@ ASSIGNMENT_OPERATOR: ':=';
 
 
 
+//
+//stylesheet
+//    : stylerule* EOF;
+//
+//stylerule
+//    : selector OPEN_BRACE declaration+ CLOSE_BRACE;
+//
+//selector
+//    : LOWER_IDENT #tagSelector | ID_IDENT #idSelector | CLASS_IDENT #classSelector;
+//
+//declaration
+//    : propertyName COLON literal SEMICOLON;
+//
+//propertyName
+//    : 'color' | 'background-color' | 'width' | 'height';
+//
+//literal
+//    : COLOR | PIXELSIZE | PERCENTAGE | SCALAR | TRUE | FALSE;
+//
 
-stylesheet
-    : stylerule* EOF;
 
-stylerule
-    : selector OPEN_BRACE declaration+ CLOSE_BRACE;
-
-selector
-    : LOWER_IDENT #tagSelector | ID_IDENT #idSelector | CLASS_IDENT #classSelector;
-
-declaration
-    : propertyName COLON literal SEMICOLON;
-
-propertyName
-    : 'color' | 'background-color' | 'width' | 'height';
-
-literal
-    : COLOR | PIXELSIZE | PERCENTAGE | SCALAR | TRUE | FALSE;
+    stylesheet: stylerule;
+    stylerule: id_selector OPEN_BRACE declaration + CLOSE_BRACE;
+    id_selector: ID_IDENT;
+    declaration: property COLON pixel_literal SEMICOLON;
+    property: LOWER_IDENT;
+    pixel_literal: PIXELSIZE;
