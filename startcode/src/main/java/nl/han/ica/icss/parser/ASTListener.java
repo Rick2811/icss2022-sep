@@ -20,13 +20,61 @@ public class ASTListener extends ICSSBaseListener {
 	// =========================
 	public AST getAST() {
 		AST ast = new AST();
-		ast.root = stylesheet;
+		if (stylesheet != null) {
+			ast.setRoot(stylesheet);
+		} else {
+			System.err.println("⚠️ ASTListener: Stylesheet is null (geen root).");
+		}
 		return ast;
 	}
+
 
 	// =========================
 	// STRUCTURE
 	// =========================
+
+	// ---- value: expr ----
+// value : expr #NumericOrVarExpr
+	@Override
+	public void exitNumericOrVarExpr(ICSSParser.NumericOrVarExprContext ctx) {
+		// Take the computed expression from the child expr and store it on this value node
+		storeValue(ctx, getChildValue(ctx.expr()));
+	}
+
+	// ---- condition (used by if) ----
+// condition : boolValue | CAPITAL_IDENT
+	@Override
+	public void exitCondition(ICSSParser.ConditionContext ctx) {
+		if (ctx.boolValue() != null) {
+			// Let boolValue handler create a BoolLiteral and bubble it up
+			storeValue(ctx, getChildValue(ctx.boolValue()));
+		} else {
+			// condition was a variable reference
+			storeValue(ctx, new VariableReference(ctx.CAPITAL_IDENT().getText()));
+		}
+	}
+
+	// boolValue : TRUE | FALSE
+	@Override
+	public void exitBoolValue(ICSSParser.BoolValueContext ctx) {
+		boolean v = ctx.TRUE() != null;
+		storeValue(ctx, new BoolLiteral(v));
+	}
+
+	// IMPORTANT: set condition when leaving the if
+	@Override
+	public void enterIfClause(ICSSParser.IfClauseContext ctx) {
+		IfClause clause = new IfClause();
+		stack.push(clause);
+	}
+
+	@Override
+	public void exitIfClause(ICSSParser.IfClauseContext ctx) {
+		IfClause clause = (IfClause) stack.pop();
+		clause.conditionalExpression = (Expression) getChildValue(ctx.condition()); // now it exists
+		addToParent(clause);
+	}
+
 
 	@Override
 	public void enterStylesheet(ICSSParser.StylesheetContext ctx) {
@@ -76,47 +124,27 @@ public class ASTListener extends ICSSBaseListener {
 	public void exitDeclaration(ICSSParser.DeclarationContext ctx) {
 		Declaration decl = new Declaration();
 		decl.property = new PropertyName(ctx.LOWER_IDENT().getText());
-
 		ASTNode value = getChildValue(ctx.value());
 		if (value != null) decl.addChild(value);
-
 		addToParent(decl);
 	}
 
-	// =========================
-	// VARIABLE ASSIGNMENTS
-	// =========================
 	@Override
 	public void exitVarAssign(ICSSParser.VarAssignContext ctx) {
-		VariableAssignment varAssign = new VariableAssignment();
-		varAssign.name = new VariableReference(ctx.CAPITAL_IDENT().getText());
-
+		VariableAssignment a = new VariableAssignment();
+		a.name = new VariableReference(ctx.CAPITAL_IDENT().getText());
 		ASTNode value = getChildValue(ctx.value());
-		if (value != null) varAssign.addChild(value);
-
-		addToParent(varAssign);
+		if (value != null) a.addChild(value);
+		addToParent(a);
 	}
+
+
 
 	// =========================
 	// IF / ELSE CLAUSES
 	// =========================
-	@Override
-	public void enterIfClause(ICSSParser.IfClauseContext ctx) {
-		IfClause clause = new IfClause();
 
-		ASTNode cond = getChildValue(ctx.condition());
-		if (cond instanceof Expression) {
-			clause.conditionalExpression = (Expression) cond;
-		}
 
-		stack.push(clause);
-	}
-
-	@Override
-	public void exitIfClause(ICSSParser.IfClauseContext ctx) {
-		IfClause clause = (IfClause) stack.pop();
-		addToParent(clause);
-	}
 
 	// =========================
 	// EXPRESSIONS & LITERALS

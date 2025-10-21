@@ -5,37 +5,26 @@ grammar ICSS;
 // ======================
 
 stylesheet
-    : statement* EOF
-    ;
+    : statement* EOF;
 
 statement
-    : varAssign
-    | ruleset
-    ;
+    : varAssign | ruleset;
 
 varAssign
-    : CAPITAL_IDENT ASSIGNMENT_OPERATOR value SEMICOLON
-    ;
+    : CAPITAL_IDENT ASSIGNMENT_OPERATOR value SEMICOLON;
 
 ruleset
-    : selector OPEN_BRACE blockItem* CLOSE_BRACE
-    ;
+    : selector OPEN_BRACE blockItem* CLOSE_BRACE;
 
 selector
-    : ID_IDENT
-    | CLASS_IDENT
-    | LOWER_IDENT
-    ;
+    : ID_IDENT | CLASS_IDENT | LOWER_IDENT ;
 
 blockItem
-    : declaration
-    | ifClause
-    | varAssign
+    : declaration | ifClause | varAssign
     ;
 
 declaration
-    : LOWER_IDENT COLON value SEMICOLON
-    ;
+    : LOWER_IDENT COLON value SEMICOLON ;
 
 ifClause
   : IF LPAREN condition RPAREN
@@ -44,34 +33,20 @@ ifClause
   ;
 
 condition
-    : boolValue
-    | CAPITAL_IDENT
-    ;
+    : boolValue | CAPITAL_IDENT;
 
 boolValue
-    : TRUE
-    | FALSE
-    ;
+    : TRUE | FALSE;
 
 value
-    : COLOR                    #ColorLiteral
-    | boolValue                #BoolLiteral
-    | expr                     #NumericOrVarExpr
+    : COLOR #ColorLiteral | boolValue #BoolLiteral | expr #NumericOrVarExpr
     ;
 
 expr
-    : MIN expr                           #UnaryMinus
-    | expr MUL expr                      #Mul
-    | expr (PLUS | MIN) expr             #AddSub
-    | atom                               #AtomExpr
-    ;
+    : MIN expr #UnaryMinus| expr MUL expr #Mul | expr (PLUS | MIN) expr #AddSub | atom #AtomExpr;
 
 atom
-    : PIXELSIZE                          #PixelLiteral
-    | PERCENTAGE                         #PercentLiteral
-    | SCALAR                             #ScalarLiteral
-    | CAPITAL_IDENT                      #VariableRef
-    ;
+    : PIXELSIZE #PixelLiteral | PERCENTAGE #PercentLiteral | SCALAR #ScalarLiteral | CAPITAL_IDENT #VariableRef;
 
 // ======================
 // LEXER RULES
