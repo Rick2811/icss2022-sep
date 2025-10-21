@@ -14,7 +14,7 @@ public class HanStack<T> implements IHANStack<T> {
         this.items = new ArrayList<>();
     }
 
-    public HanStack(List<T> items) {
+    public HanStack() {
         this.items = items;
     }
 
