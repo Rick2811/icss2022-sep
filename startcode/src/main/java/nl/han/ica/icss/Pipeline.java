@@ -75,7 +75,7 @@ public class Pipeline implements ANTLRErrorListener {
 
 // ✅ Debug + fail-safe: voorkom null-pointer
             if (this.ast == null || this.ast.root == null) {
-                System.err.println("⚠️  Pipeline: AST heeft geen root, parser leverde geen structuur!");
+                System.err.println("⚠  Pipeline: AST heeft geen root, parser leverde geen structuur!");
                 this.ast = new AST();
                 this.ast.setRoot(new nl.han.ica.icss.ast.Stylesheet());
             }
