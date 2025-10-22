@@ -1,7 +1,6 @@
 package nl.han.ica.datastructures.implementaties;
 
 import nl.han.ica.datastructures.IHANStack;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -10,12 +9,9 @@ public class HanStack<T> implements IHANStack<T> {
 
     private List<T> items;
 
-    public void HANStack() {
-        this.items = new ArrayList<>();
-    }
-
+    // ✅ Juiste constructor
     public HanStack() {
-        this.items = items;
+        this.items = new ArrayList<>();
     }
 
     @Override
@@ -31,15 +27,6 @@ public class HanStack<T> implements IHANStack<T> {
         return items.remove(items.size() - 1);
     }
 
-
-    public int size() {
-        return items.size();
-    }
-
-    public T get(int index) {
-        return items.get(index);
-    }
-
     @Override
     public T peek() {
         if (items.isEmpty()) {
@@ -48,9 +35,18 @@ public class HanStack<T> implements IHANStack<T> {
         return items.get(items.size() - 1);
     }
 
-    // Extra (optioneel): handig voor debuggen
+    @Override
+    public int size() {
+        return items.size();
+    }
+
+    // ✅ Voeg deze methode toe (voor de checker!)
+    public T get(int index) {
+        return items.get(index);
+    }
+
     @Override
     public String toString() {
-        return "HANStack" + items.toString();
+        return "HanStack" + items.toString();
     }
 }

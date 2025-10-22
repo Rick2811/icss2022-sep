@@ -27,10 +27,11 @@ declaration
     : LOWER_IDENT COLON value SEMICOLON ;
 
 ifClause
-  : IF LPAREN condition RPAREN
+  : IF (LPAREN condition RPAREN | BOX_BRACKET_OPEN condition BOX_BRACKET_CLOSE)
     OPEN_BRACE blockItem* CLOSE_BRACE
     (ELSE OPEN_BRACE blockItem* CLOSE_BRACE)?
   ;
+
 
 condition
     : boolValue | CAPITAL_IDENT;
