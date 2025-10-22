@@ -5,7 +5,7 @@ grammar ICSS;
 // ======================
 
 stylesheet
-    : statement* EOF;
+    : (statement | expr)* EOF;
 
 statement
     : varAssign | ruleset;
