@@ -40,7 +40,7 @@ public class HanStack<T> implements IHANStack<T> {
         return items.size();
     }
 
-    // ✅ Voeg deze methode toe (voor de checker!)
+
     public T get(int index) {
         return items.get(index);
     }
