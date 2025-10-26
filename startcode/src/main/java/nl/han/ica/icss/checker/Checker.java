@@ -1,5 +1,6 @@
 package nl.han.ica.icss.checker;
 
+import nl.han.ica.datastructures.implementaties.HanStack;
 import nl.han.ica.icss.ast.*;
 import nl.han.ica.icss.ast.literals.*;
 import nl.han.ica.icss.ast.operations.*;
@@ -10,11 +11,14 @@ import java.util.*;
 public class Checker {
 
     // Stack van scopes (voor variabelen)
-    private LinkedList<HashMap<String, ExpressionType>> variableTypes;
+
+    private HanStack<HashMap<String, ExpressionType>> variableTypes;
+
 
     public void check(AST ast) {
-        variableTypes = new LinkedList<>();
+        variableTypes = new HanStack<>();
         variableTypes.push(new HashMap<>()); // globale scope
+
         checkNode(ast.root);
     }
 

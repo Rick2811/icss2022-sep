@@ -2,14 +2,15 @@ package nl.han.ica.datastructures.implementaties;
 
 import nl.han.ica.datastructures.IHANStack;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class HanStack<T> implements IHANStack<T> {
+public class HanStack<T> implements IHANStack<T>, Iterable<T> {
+
 
     private List<T> items;
 
-    // ✅ Juiste constructor
     public HanStack() {
         this.items = new ArrayList<>();
     }
@@ -40,7 +41,6 @@ public class HanStack<T> implements IHANStack<T> {
         return items.size();
     }
 
-
     public T get(int index) {
         return items.get(index);
     }
@@ -48,5 +48,10 @@ public class HanStack<T> implements IHANStack<T> {
     @Override
     public String toString() {
         return "HanStack" + items.toString();
+    }
+
+    @Override
+    public Iterator<T> iterator() {
+        return items.iterator();
     }
 }

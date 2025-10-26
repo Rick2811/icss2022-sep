@@ -1,4 +1,5 @@
 package nl.han.ica.icss.transforms;
+import nl.han.ica.datastructures.implementaties.HanStack;
 
 import nl.han.ica.datastructures.IHANLinkedList;
 import nl.han.ica.datastructures.implementaties.HANLinkedList;
@@ -7,26 +8,24 @@ import nl.han.ica.icss.ast.literals.*;
 import nl.han.ica.icss.ast.operations.*;
 import nl.han.ica.icss.ast.types.ExpressionType;
 import nl.han.ica.icss.transforms.Transform;
-
 import java.util.HashMap;
 
 public class Evaluator implements Transform {
 
-    private IHANLinkedList<HashMap<String, Literal>> variableValues;
 
-    public Evaluator(IHANLinkedList<HashMap<String, Literal>> linkedListImpl) {
-        // we krijgen hier een lege implementatie van IHANLinkedList binnen
-        this.variableValues = linkedListImpl;
-    }
+    private HanStack<HashMap<String, Literal>> variableValues;
+
 
     @Override
     public void apply(AST ast) {
-        variableValues.clear();
-        variableValues.addFirst(new HashMap<>()); // globale scope
+        variableValues = new HanStack<>();
+        variableValues.push(new HashMap<>()); // globale scope
+
         evaluateNode(ast.root);
     }
     public Evaluator() {
-        this.variableValues = new HANLinkedList<>();
+        variableValues = new HanStack<>();
+        ;
     }
 
 
@@ -42,11 +41,11 @@ public class Evaluator implements Transform {
             evaluateVariableAssignment((VariableAssignment) node);
 
         } else if (node instanceof Stylerule) {
-            variableValues.addFirst(new HashMap<>()); // nieuwe scope
+            variableValues.push(new HashMap<>()); // nieuwe scope
             for (ASTNode child : node.getChildren()) {
                 evaluateNode(child);
             }
-            variableValues.removeFirst();
+            variableValues.pop();
 
         } else if (node instanceof Declaration) {
             evaluateDeclaration((Declaration) node);
@@ -67,11 +66,11 @@ public class Evaluator implements Transform {
     private void evaluateVariableAssignment(VariableAssignment assignment) {
         Literal value = evaluateExpression(assignment.expression);
         // sla op in huidige scope
-        variableValues.getFirst().put(assignment.name.name, value);
+        variableValues.peek().put(assignment.name.name, value);
     }
 
     private Literal resolveVariable(String name) {
-        for (int i = 0; i < variableValues.getSize(); i++) {
+        for (int i = 0; i < variableValues.size(); i++) {
             HashMap<String, Literal> scope = variableValues.get(i);
             if (scope.containsKey(name)) {
                 return scope.get(name);

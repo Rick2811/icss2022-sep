@@ -1,8 +1,5 @@
 grammar ICSS;
 
-// ======================
-// PARSER RULES
-// ======================
 
 stylesheet
     : (statement | expr)* EOF;
@@ -63,7 +60,7 @@ PIXELSIZE : [0-9]+ 'px';
 PERCENTAGE: [0-9]+ '%';
 SCALAR    : [0-9]+;
 
-// ✅ FIXED COLOR REGEX
+
 COLOR : '#' [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]
           [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F];
 
