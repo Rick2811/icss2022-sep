@@ -37,8 +37,7 @@ boolValue
     : TRUE | FALSE;
 
 value
-    : COLOR #ColorLiteral | boolValue #BoolLiteral | expr #NumericOrVarExpr
-    ;
+    : COLOR #ColorLiteral | boolValue #BoolLiteral | expr #NumericOrVarExpr;
 
 expr
     : MIN expr #UnaryMinus| expr MUL expr #Mul | expr (PLUS | MIN) expr #AddSub | atom #AtomExpr;

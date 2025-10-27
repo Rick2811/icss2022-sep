@@ -2,7 +2,7 @@ package nl.han.ica.icss.transforms;
 import nl.han.ica.datastructures.implementaties.HanStack;
 
 import nl.han.ica.datastructures.IHANLinkedList;
-import nl.han.ica.datastructures.implementaties.HANLinkedList;
+
 import nl.han.ica.icss.ast.*;
 import nl.han.ica.icss.ast.literals.*;
 import nl.han.ica.icss.ast.operations.*;
@@ -60,9 +60,7 @@ public class Evaluator implements Transform {
         }
     }
 
-    // --------------------------
-    // Variabelen
-    // --------------------------
+
     private void evaluateVariableAssignment(VariableAssignment assignment) {
         Literal value = evaluateExpression(assignment.expression);
         // sla op in huidige scope
@@ -79,51 +77,48 @@ public class Evaluator implements Transform {
         return null;
     }
 
-    // --------------------------
-    // Declaraties
-    // --------------------------
     private void evaluateDeclaration(Declaration declaration) {
         Literal literalValue = evaluateExpression(declaration.expression);
         declaration.expression = literalValue; // vervang expressie door berekend resultaat
     }
 
-    // --------------------------
-    // If-Else
-    // --------------------------
     private void evaluateIfClause(IfClause clause) {
         Literal condition = evaluateExpression(clause.conditionalExpression);
-
         boolean conditionValue = false;
+
         if (condition instanceof BoolLiteral) {
             conditionValue = ((BoolLiteral) condition).value;
         }
 
         if (conditionValue) {
-            // alleen het if-gedeelte behouden
-            clause.elseClause = null;
-            for (ASTNode child : clause.body) {
-                evaluateNode(child);
+            // If true → verwijder else + evalueer body
+            if (clause.elseClause != null) {
+                clause.elseClause.body.clear();
+                clause.elseClause = null;
             }
-        } else if (clause.elseClause != null) {
-            // vervang de body van de if door de else
-            clause.body = clause.elseClause.body;
-            clause.elseClause = null;
             for (ASTNode child : clause.body) {
                 evaluateNode(child);
             }
         } else {
-            // condition false en geen else -> body verwijderen
-            clause.body.clear();
+            // If false → vervang body door else-body (als die bestaat)
+            if (clause.elseClause != null) {
+                clause.body = clause.elseClause.body;
+                clause.elseClause = null;
+                for (ASTNode child : clause.body) {
+                    evaluateNode(child);
+                }
+            } else {
+                // Geen else, dus maak body leeg
+                clause.body.clear();
+            }
         }
     }
 
-    // --------------------------
-    // Expressies
-    // --------------------------
     private Literal evaluateExpression(Expression expr) {
         if (expr instanceof Literal) {
             return (Literal) expr;
         }
+
 
         if (expr instanceof VariableReference) {
             Literal value = resolveVariable(((VariableReference) expr).name);
@@ -135,54 +130,71 @@ public class Evaluator implements Transform {
 
         if (expr instanceof Operation) {
             Operation op = (Operation) expr;
-            Literal left = evaluateExpression((Expression) op.lhs);
-            Literal right = evaluateExpression((Expression) op.rhs);
+            Literal left = evaluateExpression(op.lhs);
+            Literal right = evaluateExpression(op.rhs);
 
+            // === 1. PIXEL + PIXEL ===
             if (left instanceof PixelLiteral && right instanceof PixelLiteral) {
                 int l = ((PixelLiteral) left).value;
                 int r = ((PixelLiteral) right).value;
                 return calculateOperation(op, l, r, "px");
             }
 
+            // === 2. PERCENTAGE + PERCENTAGE ===
             if (left instanceof PercentageLiteral && right instanceof PercentageLiteral) {
                 int l = ((PercentageLiteral) left).value;
                 int r = ((PercentageLiteral) right).value;
                 return calculateOperation(op, l, r, "%");
             }
 
+            // === 3. SCALAR + SCALAR ===
             if (left instanceof ScalarLiteral && right instanceof ScalarLiteral) {
                 int l = ((ScalarLiteral) left).value;
                 int r = ((ScalarLiteral) right).value;
                 return calculateOperation(op, l, r, "");
             }
 
+            // === 4. SCALAR ↔ PIXEL combinaties ===
             if (left instanceof ScalarLiteral && right instanceof PixelLiteral) {
                 int l = ((ScalarLiteral) left).value;
                 int r = ((PixelLiteral) right).value;
                 return calculateOperation(op, l, r, "px");
             }
-
             if (left instanceof PixelLiteral && right instanceof ScalarLiteral) {
                 int l = ((PixelLiteral) left).value;
                 int r = ((ScalarLiteral) right).value;
                 return calculateOperation(op, l, r, "px");
             }
 
+            // === 5. SCALAR ↔ PERCENTAGE combinaties ===
             if (left instanceof ScalarLiteral && right instanceof PercentageLiteral) {
                 int l = ((ScalarLiteral) left).value;
                 int r = ((PercentageLiteral) right).value;
                 return calculateOperation(op, l, r, "%");
             }
-
             if (left instanceof PercentageLiteral && right instanceof ScalarLiteral) {
                 int l = ((PercentageLiteral) left).value;
                 int r = ((ScalarLiteral) right).value;
+                return calculateOperation(op, l, r, "%");
+            }
+
+            // === 6. GEMENGDE PIXEL ↔ PERCENTAGE combinaties ===
+            if (left instanceof PixelLiteral && right instanceof PercentageLiteral) {
+                int l = ((PixelLiteral) left).value;
+                int r = ((PercentageLiteral) right).value;
+                // Kies de *linkerunit* als dominante eenheid
+                return calculateOperation(op, l, r, "px");
+            }
+            if (left instanceof PercentageLiteral && right instanceof PixelLiteral) {
+                int l = ((PercentageLiteral) left).value;
+                int r = ((PixelLiteral) right).value;
                 return calculateOperation(op, l, r, "%");
             }
         }
 
         return new ScalarLiteral(0);
     }
+
 
     private Literal calculateOperation(Operation op, int l, int r, String unit) {
         int result = 0;
