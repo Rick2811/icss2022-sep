@@ -73,7 +73,7 @@ public class Pipeline implements ANTLRErrorListener {
             this.ast = listener.getAST();
             this.ast = listener.getAST();
 
-// ✅ Debug + fail-safe: voorkom null-pointer
+
             if (this.ast == null || this.ast.root == null) {
                 System.err.println("⚠  Pipeline: AST heeft geen root, parser leverde geen structuur!");
                 this.ast = new AST();
