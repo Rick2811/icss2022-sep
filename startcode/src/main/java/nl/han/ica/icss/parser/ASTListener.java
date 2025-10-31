@@ -11,12 +11,21 @@ import java.util.Stack;
 
 public class ASTListener extends ICSSBaseListener {
 
-	// ---------- interne velden ----------
+	// -----------------------------
+	// velden die we nodig hebben
+	// -----------------------------
+	// dit is basically waar alles tijdelijk in wordt opgeslage
+	// stylesheet = de root van de AST (dus het hele bestand)
+	// stack = houd bij waar we zitten (in een if ofzo)
+	// values = tijdelijk opslaan van waardes tijdens het parsen
 	private Stylesheet stylesheet;
 	private final Stack<ASTNode> stack = new Stack<>();
 	private final ParseTreeProperty<ASTNode> values = new ParseTreeProperty<>();
 
-	// ---------- resultaat ----------
+	// -----------------------------
+	// resultaat ophalen
+	// -----------------------------
+	// als ANTLR klaar is met parsen dan kunnen we met deze functie de AST terug krijgen
 	public AST getAST() {
 		AST ast = new AST();
 		if (stylesheet != null) {
@@ -25,23 +34,30 @@ public class ASTListener extends ICSSBaseListener {
 		return ast;
 	}
 
-	// ---------- stylesheet ----------
+	// -----------------------------
+	// Stylesheet
+	// -----------------------------
+	// begin van het document -> maak nieuwe stylesheet
 	@Override
 	public void enterStylesheet(ICSSParser.StylesheetContext ctx) {
 		stylesheet = new Stylesheet();
 		stack.push(stylesheet);
 	}
 
+	// einde van document -> 1 stap omhoog
 	@Override
 	public void exitStylesheet(ICSSParser.StylesheetContext ctx) {
 		stack.pop();
 	}
 
-	// ---------- ruleset ----------
+	// -----------------------------
+	// Ruleset (zoals p { ... } of #id { ... })
+	// -----------------------------
 	@Override
 	public void enterRuleset(ICSSParser.RulesetContext ctx) {
 		Stylerule rule = new Stylerule();
 
+		// check welke soort selector het is
 		String selectorText = ctx.selector().getText();
 		Selector selector;
 		if (selectorText.startsWith("#")) {
@@ -57,13 +73,17 @@ public class ASTListener extends ICSSBaseListener {
 		stack.push(rule);
 	}
 
+	// als de ruleset klaar is -> voeg toe aan parent
 	@Override
 	public void exitRuleset(ICSSParser.RulesetContext ctx) {
 		Stylerule rule = (Stylerule) stack.pop();
 		addToParent(rule);
 	}
 
-	// ---------- declaration ----------
+	// -----------------------------
+	// Declaration
+	// -----------------------------
+	// bijv. color: red; of width: 50px;
 	@Override
 	public void exitDeclaration(ICSSParser.DeclarationContext ctx) {
 		Declaration decl = new Declaration();
@@ -73,15 +93,18 @@ public class ASTListener extends ICSSBaseListener {
 		addToParent(decl);
 	}
 
-	// ---------- variable assignment ----------
+	// -----------------------------
+	// Variable assignment
+	// -----------------------------
+	// bijv. LinkColor := #ff0000;
 	@Override
 	public void exitVarAssign(ICSSParser.VarAssignContext ctx) {
 		VariableAssignment varAssign = new VariableAssignment();
 
-		// Linkerkant = variabele naam
+		// links = naam vd variabele
 		varAssign.name = new VariableReference(ctx.CAPITAL_IDENT().getText());
 
-		// Rechterkant = value
+		// rechts = de value
 		ICSSParser.ValueContext valueCtx = ctx.value();
 
 		if (valueCtx instanceof ICSSParser.ColorLiteralContext) {
@@ -90,14 +113,17 @@ public class ASTListener extends ICSSBaseListener {
 			String text = valueCtx.getText().toLowerCase();
 			varAssign.expression = new BoolLiteral(text.equals("true"));
 		} else if (valueCtx instanceof ICSSParser.NumericOrVarExprContext) {
-			// expr kan pixel, percentage, scalar of variable zijn
+			// kan ook een berekening zijn
 			varAssign.expression = (Expression) extractExpr(((ICSSParser.NumericOrVarExprContext) valueCtx).expr());
 		}
 
 		addToParent(varAssign);
 	}
 
-	// Hulpmethode: expr -> ASTNode
+	// -----------------------------
+	// expressie parser
+	// -----------------------------
+	// checkt of iets een pixel of variable of scalar is enz
 	private ASTNode extractExpr(ICSSParser.ExprContext ctx) {
 		if (ctx instanceof ICSSParser.AtomExprContext) {
 			ICSSParser.AtomContext atom = ((ICSSParser.AtomExprContext) ctx).atom();
@@ -112,10 +138,14 @@ public class ASTListener extends ICSSBaseListener {
 				return new VariableReference(atom.getText());
 			}
 		}
-		return new VariableReference(ctx.getText()); // fallback
+		// fallback (voor als het iets raars is)
+		return new VariableReference(ctx.getText());
 	}
 
-	// ---------- if/else ----------
+	// -----------------------------
+	// If/Else
+	// -----------------------------
+	// bouwt de if/else structuur op in de AST
 	@Override
 	public void enterIfClause(ICSSParser.IfClauseContext ctx) {
 		IfClause ifClause = new IfClause();
@@ -144,7 +174,10 @@ public class ASTListener extends ICSSBaseListener {
 		addToParent(elseClause);
 	}
 
-	// ---------- condition ----------
+	// -----------------------------
+	// Condition
+	// -----------------------------
+	// if[ ... ] -> haalt de waarde tussen [] eruit
 	@Override
 	public void exitCondition(ICSSParser.ConditionContext ctx) {
 		if (ctx.boolValue() != null) {
@@ -159,7 +192,10 @@ public class ASTListener extends ICSSBaseListener {
 		storeValue(ctx, new BoolLiteral(ctx.TRUE() != null));
 	}
 
-	// ---------- literals ----------
+	// -----------------------------
+	// Literals
+	// -----------------------------
+	// zet textuele waardes om naar objecten (zoals ColorLiteral of PixelLiteral)
 	@Override
 	public void exitColorLiteral(ICSSParser.ColorLiteralContext ctx) {
 		storeValue(ctx, new ColorLiteral(ctx.COLOR().getText()));
@@ -190,7 +226,10 @@ public class ASTListener extends ICSSBaseListener {
 		storeValue(ctx, new VariableReference(ctx.CAPITAL_IDENT().getText()));
 	}
 
-	// ---------- expressions ----------
+	// -----------------------------
+	// Rekeningedoe (expressies +, -, *)
+	// -----------------------------
+	// maakt nodes voor berekeningen
 	@Override
 	public void exitNumericOrVarExpr(ICSSParser.NumericOrVarExprContext ctx) {
 		storeValue(ctx, getChildValue(ctx.expr()));
@@ -219,13 +258,17 @@ public class ASTListener extends ICSSBaseListener {
 
 	@Override
 	public void exitUnaryMinus(ICSSParser.UnaryMinusContext ctx) {
+		// negatief getal maken, basically 0 - x
 		Operation op = new SubtractOperation();
 		op.lhs = new ScalarLiteral(0);
 		op.rhs = (Expression) getChildValue(ctx.expr());
 		storeValue(ctx, op);
 	}
 
-	// ---------- helpers ----------
+	// -----------------------------
+	// Helpers
+	// -----------------------------
+	// kleine hulp functies om waardes te bewaren en nodes te koppelen
 	private void storeValue(org.antlr.v4.runtime.tree.ParseTree node, ASTNode value) {
 		values.put(node, value);
 	}
