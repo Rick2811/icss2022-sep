@@ -5,6 +5,7 @@ import nl.han.ica.icss.ast.literals.*;
 import nl.han.ica.icss.ast.operations.*;
 import nl.han.ica.icss.ast.selectors.*;
 import org.antlr.v4.runtime.tree.ParseTreeProperty;
+
 import java.util.ArrayList;
 import java.util.Stack;
 
@@ -76,57 +77,43 @@ public class ASTListener extends ICSSBaseListener {
 	@Override
 	public void exitVarAssign(ICSSParser.VarAssignContext ctx) {
 		VariableAssignment varAssign = new VariableAssignment();
+
+		// Linkerkant = variabele naam
 		varAssign.name = new VariableReference(ctx.CAPITAL_IDENT().getText());
-		varAssign.addChild(varAssign.name);
 
-		ASTNode valueNode = null;
+		// Rechterkant = value
+		ICSSParser.ValueContext valueCtx = ctx.value();
 
-		// 🔹 1. Directe kleurwaarde (#ff0000)
-		if (ctx.value() instanceof ICSSParser.ColorLiteralContext) {
-			ICSSParser.ColorLiteralContext colorCtx = (ICSSParser.ColorLiteralContext) ctx.value();
-			valueNode = new ColorLiteral(colorCtx.COLOR().getText());
-		}
-
-		// 🔹 2. Booleans (TRUE/FALSE)
-		else if (ctx.value() instanceof ICSSParser.BoolLiteralContext) {
-			ICSSParser.BoolLiteralContext boolCtx = (ICSSParser.BoolLiteralContext) ctx.value();
-			valueNode = new BoolLiteral(boolCtx.boolValue().TRUE() != null);
-		}
-
-		// 🔹 3. Numerieke/variabele expressies (500px, 50%, 10, LINKCOLOR)
-		else if (ctx.value() instanceof ICSSParser.NumericOrVarExprContext) {
-			ICSSParser.NumericOrVarExprContext exprCtx = (ICSSParser.NumericOrVarExprContext) ctx.value();
-
-			if (exprCtx.expr() instanceof ICSSParser.AtomExprContext) {
-				ICSSParser.AtomExprContext atomExpr = (ICSSParser.AtomExprContext) exprCtx.expr();
-				ICSSParser.AtomContext atomCtx = atomExpr.atom();
-
-				if (atomCtx instanceof ICSSParser.PixelLiteralContext) {
-					ICSSParser.PixelLiteralContext pixelCtx = (ICSSParser.PixelLiteralContext) atomCtx;
-					valueNode = new PixelLiteral(pixelCtx.PIXELSIZE().getText());
-				} else if (atomCtx instanceof ICSSParser.PercentLiteralContext) {
-					ICSSParser.PercentLiteralContext percentCtx = (ICSSParser.PercentLiteralContext) atomCtx;
-					valueNode = new PercentageLiteral(percentCtx.PERCENTAGE().getText());
-				} else if (atomCtx instanceof ICSSParser.ScalarLiteralContext) {
-					ICSSParser.ScalarLiteralContext scalarCtx = (ICSSParser.ScalarLiteralContext) atomCtx;
-					valueNode = new ScalarLiteral(scalarCtx.SCALAR().getText());
-				} else if (atomCtx instanceof ICSSParser.VariableRefContext) {
-					ICSSParser.VariableRefContext varCtx = (ICSSParser.VariableRefContext) atomCtx;
-					valueNode = new VariableReference(varCtx.CAPITAL_IDENT().getText());
-				}
-			}
-		}
-
-		if (valueNode != null) {
-			varAssign.addChild(valueNode);
+		if (valueCtx instanceof ICSSParser.ColorLiteralContext) {
+			varAssign.expression = new ColorLiteral(valueCtx.getText());
+		} else if (valueCtx instanceof ICSSParser.BoolLiteralContext) {
+			String text = valueCtx.getText().toLowerCase();
+			varAssign.expression = new BoolLiteral(text.equals("true"));
+		} else if (valueCtx instanceof ICSSParser.NumericOrVarExprContext) {
+			// expr kan pixel, percentage, scalar of variable zijn
+			varAssign.expression = (Expression) extractExpr(((ICSSParser.NumericOrVarExprContext) valueCtx).expr());
 		}
 
 		addToParent(varAssign);
 	}
 
+	// Hulpmethode: expr -> ASTNode
+	private ASTNode extractExpr(ICSSParser.ExprContext ctx) {
+		if (ctx instanceof ICSSParser.AtomExprContext) {
+			ICSSParser.AtomContext atom = ((ICSSParser.AtomExprContext) ctx).atom();
 
-
-
+			if (atom instanceof ICSSParser.PixelLiteralContext) {
+				return new PixelLiteral(atom.getText());
+			} else if (atom instanceof ICSSParser.PercentLiteralContext) {
+				return new PercentageLiteral(atom.getText());
+			} else if (atom instanceof ICSSParser.ScalarLiteralContext) {
+				return new ScalarLiteral(atom.getText());
+			} else if (atom instanceof ICSSParser.VariableRefContext) {
+				return new VariableReference(atom.getText());
+			}
+		}
+		return new VariableReference(ctx.getText()); // fallback
+	}
 
 	// ---------- if/else ----------
 	@Override
@@ -200,7 +187,6 @@ public class ASTListener extends ICSSBaseListener {
 
 	@Override
 	public void exitVariableRef(ICSSParser.VariableRefContext ctx) {
-		// Gebruik alleen CAPITAL_IDENT, anders pakt hij '#' of '.'
 		storeValue(ctx, new VariableReference(ctx.CAPITAL_IDENT().getText()));
 	}
 
