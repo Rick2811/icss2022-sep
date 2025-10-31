@@ -47,6 +47,7 @@ public class Evaluator implements Transform {
     // ------------------------------
 
     // Deze methode bepaalt welk type node ik moet evalueren (zoals variabele, if, declaration, etc.).
+
     private void evaluateNode(ASTNode node) {
         if (node == null) return;
 

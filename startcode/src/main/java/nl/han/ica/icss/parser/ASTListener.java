@@ -88,8 +88,33 @@ public class ASTListener extends ICSSBaseListener {
 	public void exitIfClause(ICSSParser.IfClauseContext ctx) {
 		IfClause clause = (IfClause) stack.pop();
 		clause.conditionalExpression = (Expression) getChildValue(ctx.condition());
+
+		// Voeg pas toe aan de parent als het geen onderdeel is van een else
 		addToParent(clause);
 	}
+
+
+	@Override
+	public void enterElseClause(ICSSParser.ElseClauseContext ctx) {
+		// Maak een nieuwe ElseClause aan en koppel die aan de laatste IfClause
+		ElseClause elseClause = new ElseClause();
+
+		// Kijk naar het laatste if-blok dat we hebben verwerkt
+		if (!stack.isEmpty() && stack.peek() instanceof IfClause) {
+			((IfClause) stack.peek()).elseClause = elseClause;
+		}
+
+		// Push de elseClause op de stack om child-nodes (zoals declarations) te kunnen toevoegen
+		stack.push(elseClause);
+	}
+
+	@Override
+	public void exitElseClause(ICSSParser.ElseClauseContext ctx) {
+		// Wanneer we uit de else komen, poppen we hem
+		ElseClause elseClause = (ElseClause) stack.pop();
+		addToParent(elseClause);
+	}
+
 
 	// ------------------------------
 	// STYLESHEET (root)
