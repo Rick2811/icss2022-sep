@@ -4,59 +4,160 @@ import nl.han.ica.icss.ast.*;
 import nl.han.ica.icss.ast.literals.*;
 import nl.han.ica.icss.ast.operations.*;
 import nl.han.ica.icss.ast.selectors.*;
-
 import org.antlr.v4.runtime.tree.ParseTreeProperty;
 import java.util.ArrayList;
 import java.util.Stack;
 
 public class ASTListener extends ICSSBaseListener {
 
-	// ------------------------------
-	// Interne velden
-	// ------------------------------
-
-	// Stylesheet is de root van onze AST (Abstract Syntax Tree)
+	// ---------- interne velden ----------
 	private Stylesheet stylesheet;
-
-	// De stack houdt bij in welke node we momenteel zitten.
-	// Wanneer we een nieuwe node binnengaan, pushen we hem op de stack.
-	// Wanneer we klaar zijn, poppen we hem er weer af.
 	private final Stack<ASTNode> stack = new Stack<>();
-
-	// Met values kunnen we waarden koppelen aan parser nodes (ParseTree-nodes),
-	// zodat we ze later kunnen ophalen (handig bij expressies en literalen).
 	private final ParseTreeProperty<ASTNode> values = new ParseTreeProperty<>();
 
-	// =========================
-	// RESULT
-	// =========================
-	// Deze functie geeft de uiteindelijke AST terug aan de pipeline.
-	// De AST bevat de root (stylesheet) met alle child-nodes erin.
+	// ---------- resultaat ----------
 	public AST getAST() {
 		AST ast = new AST();
 		if (stylesheet != null) {
 			ast.setRoot(stylesheet);
-		} else {
-			System.err.println("⚠️ ASTListener: Stylesheet is null (geen root).");
 		}
 		return ast;
 	}
 
-	// =========================
-	// STRUCTURE
-	// =========================
-	// Hier worden de verschillende onderdelen van de ICSS-code omgezet
-	// naar de juiste AST-structuren. Dit wordt allemaal aangeroepen door ANTLR.
-
-	// ---- value: expr ----
-	// Wordt gebruikt voor variabelen of berekeningen die een waarde hebben.
+	// ---------- stylesheet ----------
 	@Override
-	public void exitNumericOrVarExpr(ICSSParser.NumericOrVarExprContext ctx) {
-		storeValue(ctx, getChildValue(ctx.expr()));
+	public void enterStylesheet(ICSSParser.StylesheetContext ctx) {
+		stylesheet = new Stylesheet();
+		stack.push(stylesheet);
 	}
 
-	// ---- condition (used by if) ----
-	// Een condition kan een boolean zijn (TRUE/FALSE) of een variabele.
+	@Override
+	public void exitStylesheet(ICSSParser.StylesheetContext ctx) {
+		stack.pop();
+	}
+
+	// ---------- ruleset ----------
+	@Override
+	public void enterRuleset(ICSSParser.RulesetContext ctx) {
+		Stylerule rule = new Stylerule();
+
+		String selectorText = ctx.selector().getText();
+		Selector selector;
+		if (selectorText.startsWith("#")) {
+			selector = new IdSelector(selectorText);
+		} else if (selectorText.startsWith(".")) {
+			selector = new ClassSelector(selectorText);
+		} else {
+			selector = new TagSelector(selectorText);
+		}
+
+		rule.selectors = new ArrayList<>();
+		rule.selectors.add(selector);
+		stack.push(rule);
+	}
+
+	@Override
+	public void exitRuleset(ICSSParser.RulesetContext ctx) {
+		Stylerule rule = (Stylerule) stack.pop();
+		addToParent(rule);
+	}
+
+	// ---------- declaration ----------
+	@Override
+	public void exitDeclaration(ICSSParser.DeclarationContext ctx) {
+		Declaration decl = new Declaration();
+		decl.property = new PropertyName(ctx.LOWER_IDENT().getText());
+		ASTNode valueNode = getChildValue(ctx.value());
+		if (valueNode != null) decl.addChild(valueNode);
+		addToParent(decl);
+	}
+
+	// ---------- variable assignment ----------
+	@Override
+	public void exitVarAssign(ICSSParser.VarAssignContext ctx) {
+		VariableAssignment varAssign = new VariableAssignment();
+		varAssign.name = new VariableReference(ctx.CAPITAL_IDENT().getText());
+		varAssign.addChild(varAssign.name);
+
+		ASTNode valueNode = null;
+
+		// 🔹 1. Directe kleurwaarde (#ff0000)
+		if (ctx.value() instanceof ICSSParser.ColorLiteralContext) {
+			ICSSParser.ColorLiteralContext colorCtx = (ICSSParser.ColorLiteralContext) ctx.value();
+			valueNode = new ColorLiteral(colorCtx.COLOR().getText());
+		}
+
+		// 🔹 2. Booleans (TRUE/FALSE)
+		else if (ctx.value() instanceof ICSSParser.BoolLiteralContext) {
+			ICSSParser.BoolLiteralContext boolCtx = (ICSSParser.BoolLiteralContext) ctx.value();
+			valueNode = new BoolLiteral(boolCtx.boolValue().TRUE() != null);
+		}
+
+		// 🔹 3. Numerieke/variabele expressies (500px, 50%, 10, LINKCOLOR)
+		else if (ctx.value() instanceof ICSSParser.NumericOrVarExprContext) {
+			ICSSParser.NumericOrVarExprContext exprCtx = (ICSSParser.NumericOrVarExprContext) ctx.value();
+
+			if (exprCtx.expr() instanceof ICSSParser.AtomExprContext) {
+				ICSSParser.AtomExprContext atomExpr = (ICSSParser.AtomExprContext) exprCtx.expr();
+				ICSSParser.AtomContext atomCtx = atomExpr.atom();
+
+				if (atomCtx instanceof ICSSParser.PixelLiteralContext) {
+					ICSSParser.PixelLiteralContext pixelCtx = (ICSSParser.PixelLiteralContext) atomCtx;
+					valueNode = new PixelLiteral(pixelCtx.PIXELSIZE().getText());
+				} else if (atomCtx instanceof ICSSParser.PercentLiteralContext) {
+					ICSSParser.PercentLiteralContext percentCtx = (ICSSParser.PercentLiteralContext) atomCtx;
+					valueNode = new PercentageLiteral(percentCtx.PERCENTAGE().getText());
+				} else if (atomCtx instanceof ICSSParser.ScalarLiteralContext) {
+					ICSSParser.ScalarLiteralContext scalarCtx = (ICSSParser.ScalarLiteralContext) atomCtx;
+					valueNode = new ScalarLiteral(scalarCtx.SCALAR().getText());
+				} else if (atomCtx instanceof ICSSParser.VariableRefContext) {
+					ICSSParser.VariableRefContext varCtx = (ICSSParser.VariableRefContext) atomCtx;
+					valueNode = new VariableReference(varCtx.CAPITAL_IDENT().getText());
+				}
+			}
+		}
+
+		if (valueNode != null) {
+			varAssign.addChild(valueNode);
+		}
+
+		addToParent(varAssign);
+	}
+
+
+
+
+
+	// ---------- if/else ----------
+	@Override
+	public void enterIfClause(ICSSParser.IfClauseContext ctx) {
+		IfClause ifClause = new IfClause();
+		stack.push(ifClause);
+	}
+
+	@Override
+	public void exitIfClause(ICSSParser.IfClauseContext ctx) {
+		IfClause ifClause = (IfClause) stack.pop();
+		ifClause.conditionalExpression = (Expression) getChildValue(ctx.condition());
+		addToParent(ifClause);
+	}
+
+	@Override
+	public void enterElseClause(ICSSParser.ElseClauseContext ctx) {
+		ElseClause elseClause = new ElseClause();
+		if (!stack.isEmpty() && stack.peek() instanceof IfClause) {
+			((IfClause) stack.peek()).elseClause = elseClause;
+		}
+		stack.push(elseClause);
+	}
+
+	@Override
+	public void exitElseClause(ICSSParser.ElseClauseContext ctx) {
+		ElseClause elseClause = (ElseClause) stack.pop();
+		addToParent(elseClause);
+	}
+
+	// ---------- condition ----------
 	@Override
 	public void exitCondition(ICSSParser.ConditionContext ctx) {
 		if (ctx.boolValue() != null) {
@@ -66,171 +167,54 @@ public class ASTListener extends ICSSBaseListener {
 		}
 	}
 
-	// boolValue : TRUE | FALSE
 	@Override
 	public void exitBoolValue(ICSSParser.BoolValueContext ctx) {
-		boolean v = ctx.TRUE() != null;
-		storeValue(ctx, new BoolLiteral(v));
+		storeValue(ctx, new BoolLiteral(ctx.TRUE() != null));
 	}
 
-	// ------------------------------
-	// IF / ELSE handling
-	// ------------------------------
-	// Hier wordt een if-clause aangemaakt wanneer we deze tegenkomen in de parser.
-	@Override
-	public void enterIfClause(ICSSParser.IfClauseContext ctx) {
-		IfClause clause = new IfClause();
-		stack.push(clause);
-	}
-
-	// Wanneer we de if-clause verlaten, vullen we de condition in en voegen we de node toe aan de parent.
-	@Override
-	public void exitIfClause(ICSSParser.IfClauseContext ctx) {
-		IfClause clause = (IfClause) stack.pop();
-		clause.conditionalExpression = (Expression) getChildValue(ctx.condition());
-
-		// Voeg pas toe aan de parent als het geen onderdeel is van een else
-		addToParent(clause);
-	}
-
-
-	@Override
-	public void enterElseClause(ICSSParser.ElseClauseContext ctx) {
-		// Maak een nieuwe ElseClause aan en koppel die aan de laatste IfClause
-		ElseClause elseClause = new ElseClause();
-
-		// Kijk naar het laatste if-blok dat we hebben verwerkt
-		if (!stack.isEmpty() && stack.peek() instanceof IfClause) {
-			((IfClause) stack.peek()).elseClause = elseClause;
-		}
-
-		// Push de elseClause op de stack om child-nodes (zoals declarations) te kunnen toevoegen
-		stack.push(elseClause);
-	}
-
-	@Override
-	public void exitElseClause(ICSSParser.ElseClauseContext ctx) {
-		// Wanneer we uit de else komen, poppen we hem
-		ElseClause elseClause = (ElseClause) stack.pop();
-		addToParent(elseClause);
-	}
-
-
-	// ------------------------------
-	// STYLESHEET (root)
-	// ------------------------------
-
-	// Wanneer we aan het begin van de stylesheet komen, maken we een nieuwe Stylesheet-node aan.
-	@Override
-	public void enterStylesheet(ICSSParser.StylesheetContext ctx) {
-		stylesheet = new Stylesheet();
-		stack.push(stylesheet);
-	}
-
-	// Wanneer we klaar zijn met de stylesheet, halen we hem weer van de stack af.
-	@Override
-	public void exitStylesheet(ICSSParser.StylesheetContext ctx) {
-		if (!stack.isEmpty() && stack.peek() instanceof Stylesheet) {
-			stylesheet = (Stylesheet) stack.pop();
-		}
-	}
-
-	// =========================
-	// RULESETS (Selectors + Block)
-	// =========================
-	// Een ruleset is iets als:
-	// p { width: 100px; }
-	// Hierbij maken we een nieuwe Stylerule aan met een selector.
-	@Override
-	public void enterRuleset(ICSSParser.RulesetContext ctx) {
-		Stylerule rule = new Stylerule();
-
-		// Bepaal wat voor soort selector het is (#id, .class of tag)
-		String selectorText = ctx.selector().getText();
-		Selector selectorNode;
-		if (selectorText.startsWith("#"))
-			selectorNode = new IdSelector(selectorText.substring(1));
-		else if (selectorText.startsWith("."))
-			selectorNode = new ClassSelector(selectorText.substring(1));
-		else
-			selectorNode = new TagSelector(selectorText);
-
-		// Voeg de selector toe aan de lijst van selectors
-		rule.selectors = new ArrayList<>();
-		rule.selectors.add(selectorNode);
-
-		// Push de stylerule op de stack
-		stack.push(rule);
-	}
-
-	// Als we klaar zijn met de ruleset, voegen we deze toe aan de parent (meestal de stylesheet)
-	@Override
-	public void exitRuleset(ICSSParser.RulesetContext ctx) {
-		Stylerule rule = (Stylerule) stack.pop();
-		addToParent(rule);
-	}
-
-	// =========================
-	// DECLARATIONS
-	// =========================
-	// Een declaratie is iets als:
-	// color: #ff0000; of width: 20px;
-	@Override
-	public void exitDeclaration(ICSSParser.DeclarationContext ctx) {
-		Declaration decl = new Declaration();
-		decl.property = new PropertyName(ctx.LOWER_IDENT().getText());
-		ASTNode value = getChildValue(ctx.value());
-		if (value != null) decl.addChild(value);
-		addToParent(decl);
-	}
-
-	// Variabele declaratie:
-	// MyColor := #ff0000;
-	@Override
-	public void exitVarAssign(ICSSParser.VarAssignContext ctx) {
-		VariableAssignment a = new VariableAssignment();
-		a.name = new VariableReference(ctx.CAPITAL_IDENT().getText());
-		ASTNode value = getChildValue(ctx.value());
-		if (value != null) a.addChild(value);
-		addToParent(a);
-	}
-
-	// =========================
-	// EXPRESSIONS & LITERALS
-	// =========================
-	// Alle soorten waarden zoals kleuren, pixels, percentages en scalars.
-
+	// ---------- literals ----------
 	@Override
 	public void exitColorLiteral(ICSSParser.ColorLiteralContext ctx) {
 		storeValue(ctx, new ColorLiteral(ctx.COLOR().getText()));
 	}
 
 	@Override
-	public void exitBoolLiteral(ICSSParser.BoolLiteralContext ctx) {
-		storeValue(ctx, new BoolLiteral(ctx.getText().equalsIgnoreCase("TRUE")));
-	}
-
-	@Override
 	public void exitPixelLiteral(ICSSParser.PixelLiteralContext ctx) {
-		storeValue(ctx, new PixelLiteral(ctx.getText()));
+		storeValue(ctx, new PixelLiteral(ctx.PIXELSIZE().getText()));
 	}
 
 	@Override
 	public void exitPercentLiteral(ICSSParser.PercentLiteralContext ctx) {
-		storeValue(ctx, new PercentageLiteral(ctx.getText()));
+		storeValue(ctx, new PercentageLiteral(ctx.PERCENTAGE().getText()));
 	}
 
 	@Override
 	public void exitScalarLiteral(ICSSParser.ScalarLiteralContext ctx) {
-		storeValue(ctx, new ScalarLiteral(ctx.getText()));
+		storeValue(ctx, new ScalarLiteral(ctx.SCALAR().getText()));
+	}
+
+	@Override
+	public void exitBoolLiteral(ICSSParser.BoolLiteralContext ctx) {
+		storeValue(ctx, new BoolLiteral(ctx.boolValue().TRUE() != null));
 	}
 
 	@Override
 	public void exitVariableRef(ICSSParser.VariableRefContext ctx) {
-		storeValue(ctx, new VariableReference(ctx.getText()));
+		// Gebruik alleen CAPITAL_IDENT, anders pakt hij '#' of '.'
+		storeValue(ctx, new VariableReference(ctx.CAPITAL_IDENT().getText()));
 	}
 
-	// Optellingen en aftrekkingen (zoals 10px + 5px)
+	// ---------- expressions ----------
+	@Override
+	public void exitNumericOrVarExpr(ICSSParser.NumericOrVarExprContext ctx) {
+		storeValue(ctx, getChildValue(ctx.expr()));
+	}
+
+	@Override
+	public void exitAtomExpr(ICSSParser.AtomExprContext ctx) {
+		storeValue(ctx, getChildValue(ctx.atom()));
+	}
+
 	@Override
 	public void exitAddSub(ICSSParser.AddSubContext ctx) {
 		Operation op = ctx.PLUS() != null ? new AddOperation() : new SubtractOperation();
@@ -239,7 +223,6 @@ public class ASTListener extends ICSSBaseListener {
 		storeValue(ctx, op);
 	}
 
-	// Vermenigvuldiging (zoals 10px * 2)
 	@Override
 	public void exitMul(ICSSParser.MulContext ctx) {
 		Operation op = new MultiplyOperation();
@@ -248,7 +231,6 @@ public class ASTListener extends ICSSBaseListener {
 		storeValue(ctx, op);
 	}
 
-	// Unary minus (zoals -10px)
 	@Override
 	public void exitUnaryMinus(ICSSParser.UnaryMinusContext ctx) {
 		Operation op = new SubtractOperation();
@@ -257,27 +239,15 @@ public class ASTListener extends ICSSBaseListener {
 		storeValue(ctx, op);
 	}
 
-	// Atomaire expressie (zoals een enkele waarde)
-	@Override
-	public void exitAtomExpr(ICSSParser.AtomExprContext ctx) {
-		storeValue(ctx, getChildValue(ctx.atom()));
-	}
-
-	// =========================
-	// HELPERS
-	// =========================
-
-	// Kleine helper om een waarde op te slaan in de ParseTreeProperty.
+	// ---------- helpers ----------
 	private void storeValue(org.antlr.v4.runtime.tree.ParseTree node, ASTNode value) {
 		values.put(node, value);
 	}
 
-	// Haalt eerder opgeslagen waarde van een child op.
 	private ASTNode getChildValue(org.antlr.v4.runtime.tree.ParseTree node) {
 		return values.get(node);
 	}
 
-	// Voeg een node toe aan zijn parent in de AST.
 	private void addToParent(ASTNode node) {
 		if (!stack.isEmpty()) {
 			stack.peek().addChild(node);

@@ -96,12 +96,15 @@ PIXELSIZE : [0-9]+ 'px';
 PERCENTAGE: [0-9]+ '%';
 SCALAR    : [0-9]+;
 
-COLOR     : '#' [0-9a-fA-F]{6};
+
+COLOR : '#' [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F];
+
 
 ID_IDENT      : '#' [a-z0-9\-]+;
 CLASS_IDENT   : '.' [a-z0-9\-]+;
 LOWER_IDENT   : [a-z] [a-z0-9\-]*;
 CAPITAL_IDENT : [A-Z] [A-Za-z0-9_]*;
+
 
 OPEN_BRACE        : '{';
 CLOSE_BRACE       : '}';
