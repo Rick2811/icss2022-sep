@@ -41,7 +41,6 @@ declaration
     : LOWER_IDENT COLON value SEMICOLON
     ;
 
-/* if [ ... ] { ... } (else { ... })? */
 ifClause
     : IF BOX_BRACKET_OPEN condition BOX_BRACKET_CLOSE
       block
